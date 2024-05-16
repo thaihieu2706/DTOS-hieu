@@ -1,0 +1,5 @@
+[ ! -d /etc/dtos ] && sudo mkdir /etc/dtos
+[ -d /etc/dtos ] && mkdir ~/dtos-backup-$(date +%Y.%m.%d-%H%M) && cp -Rf /etc/dtos ~/dtos-backup-$(date +%Y.%m.%d-%H%M)
+[ ! -d ~/.config ] && mkdir ~/.config
+[ -d ~/.config ] && mkdir ~/.config-backup-$(date +%Y.%m.%d-%H%M) && cp -Rf ~/.config ~/.config-backup-$(date +%Y.%m.%d-%H%M)
+cd /etc/dtos && cp -Rf . ~ && cd -

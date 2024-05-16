@@ -1,0 +1,15 @@
+[ -d ~/.emacs.d ] && mv ~/.emacs.d ~/.emacs.d.bak.$(date +"%Y%m%d_%H%M%S")
+[ -f ~/.emacs ] && mv ~/.emacs ~/.emacs.bak.$(date +"%Y%m%d_%H%M%S")
+git clone --depth 1 https://github.com/hlissner/doom-emacs ~/.emacs.d
+~/.emacs.d/bin/doom --force install
+~/.emacs.d/bin/doom sync
+
+[ ! -d /etc/pacman.d/hooks ] && sudo mkdir /etc/pacman.d/hooks
+sudo cp /etc/dtos/.config/xmonad/pacman-hooks/recompile-xmonad.hook /etc/pacman.d/hooks/
+sudo cp /etc/dtos/.config/xmonad/pacman-hooks/recompile-xmonadh.hook /etc/pacman.d/hooks/
+
+[ ! -d $HOME/.config/dmscripts ] && mkdir $HOME/.config/dmscripts
+cp /etc/dmscripts/config $HOME/.config/dmscripts/config
+sed -i 's/DMBROWSER=\"brave\"/DMBROWSER=\"qutebrowser\"/g' $HOME/.config/dmscripts/config
+sed -i 's/DMTERM=\"st -e\"/DMTERM=\"alacritty -e\"/g' $HOME/.config/dmscripts/config
+sed -i 's/setbg_dir=\"${HOME}\/Pictures\/Wallpapers\"/setbg_dir=\"\/usr\/share\/backgrounds\/dtos-backgrounds\"/g' $HOME/.config/dmscripts/config

@@ -1,0 +1,249 @@
+#!/usr/bin/env bash
+#  ____ _____ ___  ____
+# |  _ \_   _/ _ \/ ___|   Derek Taylor (DistroTube)
+# | | | || || | | \___ \   http://www.youtube.com/c/DistroTube
+# | |_| || || |_| |___) |  http://www.gitlab.com/dtos/dtos
+# |____/ |_| \___/|____/
+#
+# NAME: DTOS
+# DESC: DT 的 Xmonad 視窗管理員安裝腳本和設定。
+# WARNING: 執行腳本時請自行承擔風險
+# DEPENDENCIES: dialog
+
+if [ "$(id -u)" = 0 ]; then
+    echo "##################################################################"
+    echo "這個腳本＊必須不使用超級使用者身分執行＊因為它會隨時間切換"
+    echo "資料夾例如 \$HOME \$USER。"
+    echo "\$HOME 的超級使用者的資料夾當然是「/root」。"
+    echo "當然，腳本需要超級使用者的密碼時會隨時問您。"
+    echo "##################################################################"
+    exit 1
+fi
+
+error() { \
+    clear; printf "錯誤:\\n%s\\n" "$1" >&2; exit 1;
+}
+
+echo "################################################################"
+echo "##          重新整理軟體源並且正在安裝「dialog」套件                ##"
+echo "################################################################"
+sudo pacman --noconfirm --needed -Syu dialog || error "重新整理軟體源時失敗"
+
+welcome() { \
+    dialog --colors --title "\Z7\Zb正在安裝 DTOS！" --msgbox "\Z4這個腳本將會安裝 DTOS（DT 的作業系統）。不過這只是讓那些好奇寶寶試試看我安裝的套件和我的設定。在安裝時會問您的超級使用者密碼，所以請隨時盯著您的電腦。\\n\\n-DT（開發者：Derek Taylor，aka DistroTube）" 16 60
+}
+
+welcome || error "使用者取消"
+
+speedwarning() { \
+    dialog --colors --title "\Z7\Zb正在安裝 DTOS" --yes-label "繼續" --no-label "取消" --yesno  "\Z4＊警告＊！ParallelDownloads 選項尚未在 /etc/pacman.conf 中啟用。這可能導致下載速度會跟 Windows 一樣慢。確定繼續？" 16 60 || error "使用者取消"
+}
+
+distrowarning() { \
+    dialog --colors --title "\Z7\Zb正在安裝 DTOS!" --yes-label "繼續" --no-label "取消" --yesno  "\Z4＊警告＊！雖然這個腳本適用所有基於 Arch Linux 的作業系統，不過有些作業系統會有和此腳本衝突的套件。確定繼續？" 16 60 || error "使用者取消"
+}
+
+grep -qs "#ParallelDownloads" /etc/pacman.conf && speedwarning
+grep -qs "ID=arch" /etc/os-release || distrowarning
+
+localewarning() { \
+        [[ -z $LANG || -z $LC_CTYPE ]] && \
+        dialog --colors --title "\Z7\ZbInstalling DTOS!" --msgbox "\Z4＊警告＊！您尚未設定您的語言環境，請確認 /etc/local.conf 的 LANG 和 LC_CTYPE 變數設定正確（注意：語言環境應該相同）接下來執行「sudo locale-gen」，重新啟動然後再次執行此腳本。RTFM：https://wiki.archlinux.org/title/locale" 16 60 && error "您尚未設定您的語言環境，請確認 /etc/local.conf 的 LANG 和 LC_CTYPE 變數設定正確（注意：語言環境應該相同）接下來執行「sudo locale-gen」，重新啟動然後再次執行此腳本。RTFM：https://wiki.archlinux.org/title/locale"
+}
+
+localewarning
+
+lastchance() { \
+    dialog --colors --title "\Z7\Zb正在安裝 DTOS！" --msgbox "\Z4＊警告＊！此腳本仍然為測試版本，請先在如 VirtualBox 的模擬器中執行" 16 60
+
+    dialog --colors --title "\Z7\Zb是否繼續？" --yes-label "繼續" --no-label "取消" --yesno "\Z4是否開始安裝 DTOS？" 8 60 || { clear; exit 1; }
+}
+
+lastchance || error "使用者取消"
+
+addrepo() { \
+    echo "#########################################################"
+    echo "##        增加 DTOS 的軟體源到 /etc/pacman.conf          ##"
+    echo "#########################################################"
+    grep -qxF "[dtos-core-repo]" /etc/pacman.conf ||
+        ( echo " "; echo "[dtos-core-repo]"; echo "SigLevel = Required DatabaseOptional"; \
+        echo "Server = https://gitlab.com/dtos/\$repo/-/raw/main/\$arch") | sudo tee -a /etc/pacman.conf
+}
+
+addrepo || error "Error adding DTOS repo to /etc/pacman.conf."
+
+addkeyserver() { \
+    echo "#######################################################"
+    echo "##     增加金鑰伺服器到 /etc/pacman.d/gnupg/gpg.conf    ##"
+    echo "#######################################################"
+    grep -qxF "keyserver.ubuntu.com:80" /etc/pacman.d/gnupg/gpg.conf || echo "keyserver hkp://keyserver.ubuntu.com:80" | sudo tee -a /etc/pacman.d/gnupg/gpg.conf
+    grep -qxF "keyserver.ubuntu.com:443" /etc/pacman.d/gnupg/gpg.conf || echo "keyserver hkps://keyserver.ubuntu.com:443" | sudo tee -a /etc/pacman.d/gnupg/gpg.conf
+}
+
+addkeyserver || error "在增加金鑰伺服器到 /etc/pacman.d/gnupg/gpg.conf 時出錯。"
+
+receive_key() { \
+    local _pgpkey="C71486C31555B12E"
+    echo "#####################################"
+    echo "## Adding PGP key $_pgpkey ##"
+    echo "#####################################"
+    sudo pacman-key --recv-key $_pgpkey
+    sudo pacman-key --lsign-key $_pgpkey
+}
+
+receive_key || error "Error receiving PGP key $_pgpkey"
+
+echo "##################################################"
+echo "##              選擇您的視窗管理員。               ##"
+echo "##         xmonad、awesome，或 qtile。           ##"
+echo "##     您至少則依，否則您將不會有使用者介面。         ##"
+echo "##             xmonad 為最佳選擇。                ##"
+echo "##################################################"
+
+while true; do
+    read -p "是否安裝 XMonad？（Yy/Nn）" yn
+    case $yn in
+        [Yy]* ) sudo pacman -Sy xmonad xmonad-contrib xmobar dtos-xmonad dtos-xmobar;
+                break;;
+        [Nn]* ) echo "您選擇不安裝 XMonad。";
+                break;;
+        * ) echo "請回答問題。";;
+    esac
+done
+
+while true; do
+read -p "是否安裝 Awesome？（Yy/Nn）" yn
+    case $yn in
+        [Yy]* ) sudo pacman -Sy awesome dtos-awesome ;
+                break;;
+        [Nn]* ) echo "您選擇不安裝 Awesome。";
+                break;;
+        * ) echo "請回答問題";;
+    esac
+done
+
+while true; do
+    read -p "是否安裝 Qtile？（Yy/Nn）" yn
+    case $yn in
+        [Yy]* ) sudo pacman -Sy qtile dtos-qtile ;
+                break;;
+        [Nn]* ) echo "您選擇不安裝 Qtile。" ;
+                break;;
+        * ) echo "請回答問題";;
+    esac
+done
+
+# Let's install each package listed in the pkglist.txt file.
+sudo pacman --needed --ask 4 -Sy - < pkglist.txt || error "Failed to install required packages."
+
+echo "################################################################"
+echo "##         正在複製 DTOS 設定檔案從 /etc/dtos 到 \$HOME          ##"
+echo "################################################################"
+[ ! -d /etc/dtos ] && sudo mkdir /etc/dtos
+[ -d /etc/dtos ] && mkdir ~/dtos-backup-$(date +%Y.%m.%d-%H%M) && cp -Rf /etc/dtos ~/dtos-backup-$(date +%Y.%m.%d-%H%M)
+[ ! -d ~/.config ] && mkdir ~/.config
+[ -d ~/.config ] && mkdir ~/.config-backup-$(date +%Y.%m.%d-%H%M) && cp -Rf ~/.config ~/.config-backup-$(date +%Y.%m.%d-%H%M)
+cd /etc/dtos && cp -Rf . ~ && cd -
+
+# Change all scripts in .local/bin to be executable.
+find $HOME/.local/bin -type f -print0 | xargs -0 chmod 775
+
+echo "#########################################################"
+echo "##        正在安裝 Doom Emacs。這可能需要幾分鐘。           ##"
+echo "#########################################################"
+[ -d ~/.emacs.d ] && mv ~/.emacs.d ~/.emacs.d.bak.$(date +"%Y%m%d_%H%M%S")
+[ -f ~/.emacs ] && mv ~/.emacs ~/.emacs.bak.$(date +"%Y%m%d_%H%M%S")
+git clone --depth 1 https://github.com/hlissner/doom-emacs ~/.emacs.d
+~/.emacs.d/bin/doom --force install
+~/.emacs.d/bin/doom sync
+
+[ ! -d /etc/pacman.d/hooks ] && sudo mkdir /etc/pacman.d/hooks
+sudo cp /etc/dtos/.config/xmonad/pacman-hooks/recompile-xmonad.hook /etc/pacman.d/hooks/
+sudo cp /etc/dtos/.config/xmonad/pacman-hooks/recompile-xmonadh.hook /etc/pacman.d/hooks/
+
+[ ! -d $HOME/.config/dmscripts ] && mkdir $HOME/.config/dmscripts
+cp /etc/dmscripts/config $HOME/.config/dmscripts/config
+sed -i 's/DMBROWSER=\"brave\"/DMBROWSER=\"qutebrowser\"/g' $HOME/.config/dmscripts/config
+sed -i 's/DMTERM=\"st -e\"/DMTERM=\"alacritty -e\"/g' $HOME/.config/dmscripts/config
+sed -i 's/setbg_dir=\"${HOME}\/Pictures\/Wallpapers\"/setbg_dir=\"\/usr\/share\/backgrounds\/dtos-backgrounds\"/g' $HOME/.config/dmscripts/config
+
+xmonad_recompile() { \
+    echo "########################"
+    echo "##    重新編譯 XMonad  ##"
+    echo "########################"
+    xmonad --recompile
+}
+
+xmonad_recompile || echo "重新編譯 Xmonad 時失敗！"
+
+xmonadctl_compile() { \
+    echo "####################################"
+    echo "##     正在編譯 xmonadctl 腳本      ##"
+    echo "####################################"
+    ghc -dynamic "$HOME"/.config/xmonad/xmonadctl.hs
+}
+
+xmonadctl_compile || echo "編譯 xmonadctl 腳本失敗！"
+
+PS3='選擇 Shell（輸入數字）：'
+shells=("fish" "bash" "zsh" "退出")
+select choice in "${shells[@]}"; do
+    case $choice in
+         fish | bash | zsh)
+            sudo chsh $USER -s "/bin/$choice" && \
+            echo -e "$choice 已設為預設的 Shell。\
+                    \n安裝後需要登出來套用設定"
+            break
+            ;;
+         quit)
+            echo "使用者退出"
+            break
+            ;;
+         *)
+            echo "無效選項 $REPLY"
+            ;;
+    esac
+done
+
+# Disable the current login manager
+sudo systemctl disable $(grep '/usr/s\?bin' /etc/systemd/system/display-manager.service | awk -F / '{print $NF}') || echo "無法停用目前的顯示管理器"
+# Enable sddm as login manager
+sudo systemctl enable sddm
+echo "###################################"
+echo "##      啟用 sddm 為登入管理器。    ##"
+echo "###################################"
+
+## Make multicolor-sddm-theme the default sddm theme ##
+# This is the sddm system configuration file.
+[ -f "/usr/lib/sddm/sddm.conf.d/default.conf" ] && \
+    sudo cp /usr/lib/sddm/sddm.conf.d/default.conf /usr/lib/sddm/sddm.conf.d/default.conf.backup && \
+    sudo sed -i 's/^Current=*.*/Current=multicolor-sddm-theme/g' /usr/lib/sddm/sddm.conf.d/default.conf
+
+# This is the sddm local configuration file.
+[ -f "/etc/sddm.conf" ] && \
+    sudo cp /etc/sddm.conf /etc/sddm.conf.backup && \
+    sudo sed -i 's/^Current=*.*/Current=multicolor-sddm-theme/g' /etc/sddm.conf
+
+# Create a local configuration file if it doesn't exist.
+# Standard Arch Linux does not create this file by default.
+[ ! -f "/etc/sddm.conf" ] && \
+    sudo cp /usr/lib/sddm/sddm.conf.d/default.conf /etc/sddm.conf || echo "Default sddm system config file is not found."
+
+# ArcoLinux B Awesome uses this config location.
+[ -f "/etc/sddm.conf.d/kde_settings.conf" ] && \
+    sudo cp /etc/sddm.conf.d/kde_settings.conf /etc/sddm.conf.d/kde_settings.backup && \
+    sudo sed -i 's/^Current=*.*/Current=multicolor-sddm-theme/g' /etc/sddm.conf.d/kde_settings.conf
+
+echo "##############################"
+echo "##       DTOS 安裝完成！      ##"
+echo "##############################"
+
+while true; do
+    read -p "是否重新啟動？（Y/n）" yn
+    case $yn in
+        [Yy]* ) reboot;;
+        [Nn]* ) break;;
+        "" ) reboot;;
+        * ) echo "請回答問題";;
+    esac
+done
